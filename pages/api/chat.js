@@ -21,7 +21,7 @@ export default async function handler(req, res) {
           { role: "system", content: "Du är en hjälpsam support-AI för FortusPay. Svara vänligt på svenska." },
           { role: "user", content: message },
         ],
-        model: "llama3-8b-8192",  // Uppdaterad modell - byt vid behov till t.ex. "gemma-7b-it" eller "llama3-70b-8192"
+        model: "llama-3.1-8b-instant",  // Uppdaterad modell
       });
 
       const aiReply = completion.choices[0].message.content || 'Inget svar från AI – prova igen.';
