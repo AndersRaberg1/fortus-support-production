@@ -94,7 +94,7 @@ ${context}`
     console.log('Sending to Groq with messages count:', groqMessages.length);
 
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant', // Bättre på multilingual och översättning!
+      model: 'llama-3.3-70b-versatile', // Bättre på multilingual och översättning!
       messages: groqMessages,
       temperature: 0.3,
       max_tokens: 1024,
