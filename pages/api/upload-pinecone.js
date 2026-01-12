@@ -10,7 +10,6 @@ export default async function handler(req, res) {
     const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
     const index = pinecone.Index('fortus-support');
 
-    // Alla dina FAQ-sektioner (från CSV, lägg till fler om du vill)
     const chunks = [
       { keyword: 'Faktura, delbetalning', text: 'För att använda Faktura via Fortus som betalmetod för er webshop, POS eller affärssystem följ dessa steg: Kontakta Fortus. Ring in till oss på 010 – 222 15 20 eller skicka e-post via till support@fortuspay.com. Signera Fakturaköpsavtal. Avtal skickas till er via oneflow. När detta är signerat så sätts ni upp i systemet inom 24 timmar. Betalalternativ aktiveras i systemet. Fortus aktiverar fakturaknappen för er. När detta är klart kan ni börja skicka fakturor via Fortus till era kunder.' },
       { keyword: 'Swish', text: 'För att använda Swish som betalmetod för din webshop eller POS, följ dessa steg: Kontakta banken. Begär om att få Swish Handel kopplat till ditt företagskonto. Ange Fortus som teknisk leverantör när du pratar med banken. Fortus tekniska leverantörs ID är 9873196894. Uppge detta ID för att slutföra kopplingen. Automatisk aktivering. Efter att Swish är kopplat med Fortus som teknisk leverantör, kommer Fortus att automatiskt aktivera Swish i de valda försäljningskanalerna. När detta är klart kan du börja ta emot Swish-betalningar från dina kunder i de kanaler du har valt.' },
@@ -26,7 +25,7 @@ export default async function handler(req, res) {
       const embedResponse = await pinecone.inference.embed(
         'llama-text-embed-v2',
         [chunk.text],
-        { input_type: 'passage' }  // För dokument/chunks
+        { input_type: 'passage' }  // Fixar felet!
       );
       const embedding = embedResponse.data[0].values;
       vectors.push({
