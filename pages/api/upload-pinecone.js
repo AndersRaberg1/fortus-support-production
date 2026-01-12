@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       const embedResponse = await pinecone.inference.embed(
         'llama-text-embed-v2',
         [chunk.text],
-        { input_type: 'passage' }  // Fixar felet för chunks!
+        { input_type: 'passage' }  // Detta fixar felet för chunks!
       );
       const embedding = embedResponse.data[0].values;
       vectors.push({
@@ -39,6 +39,6 @@ export default async function handler(req, res) {
     res.status(200).json({ message: `Uppladdat ${vectors.length} chunks till Pinecone framgångsrikt!` });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message || 'Okänt fel vid uppladdning' });
   }
 }
