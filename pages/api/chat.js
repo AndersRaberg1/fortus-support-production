@@ -33,14 +33,13 @@ export default async function handler(req, res) {
     console.log('Received messages count:', messages.length);
     console.log('Latest user message for RAG:', latestUserMessage);
 
-    // Multilingual model + "query: " prefix
     const queryEmbeddingResponse = await hf.featureExtraction({
       model: 'intfloat/multilingual-e5-large',
       inputs: `query: ${latestUserMessage}`,
     });
 
     const queryEmbedding = Array.from(queryEmbeddingResponse);
-    console.log('Query embedding length:', queryEmbedding.length); // 1024
+    console.log('Query embedding length:', queryEmbedding.length);
 
     const indexName = process.env.PINECONE_INDEX_NAME;
     console.log('Using Pinecone index:', indexName);
@@ -67,16 +66,17 @@ export default async function handler(req, res) {
       console.log('No relevant matches found');
     }
 
-    // Stark prompt med språköversättning + anti-hallucination
+    // Starkare prompt för språk-matchning
     const systemPrompt = {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
-Svara ALLTID på samma språk som kundens senaste fråga – översätt informationen från kunskapsbasen till det språket vid behov.
-Var professionell men personlig – använd "du" (eller "you" på engelska) och var trevlig.
-Avsluta gärna med "Behöver du hjälp med något mer?" (eller "Do you need help with anything else?" på engelska) när det passar.
+Svara ALLTID på exakt samma språk som kundens senaste fråga.
+Översätt ALL information från kunskapsbasen till frågans språk – behåll exakt betydelse och struktur.
+Var professionell men personlig – använd "du" på svenska eller "you" på engelska.
+Avsluta gärna med "Behöver du hjälp med något mer?" på svenska eller "Do you need help with anything else?" på engelska.
 
-Du FÅR INTE hitta på eller gissa information. Använd ENDAST information från kunskapsbasen nedan.
-Om kunskapsbasen är tom eller inte relevant, svara EXAKT: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp." (eller motsvarande på engelska: "I'm sorry, I couldn't find information about this in our knowledge base. Please contact support@fortuspay.se for help.")
+Du FÅR INTE hitta på information. Använd ENDAST kunskapsbasen.
+Om ingen relevant info: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp." (eller exakt översättning på engelska: "I'm sorry, I couldn't find information about this in our knowledge base. Please contact support@fortuspay.se for help.")
 
 Kunskapsbas:
 ${context}`
@@ -86,7 +86,6 @@ ${context}`
 
     console.log('Sending to Groq with messages count:', groqMessages.length);
 
-    // FIX: messages-parameter tillagd igen!
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
       messages: groqMessages,
