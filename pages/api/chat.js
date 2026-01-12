@@ -33,7 +33,7 @@ export default async function handler(req, res) {
     console.log('Received messages count:', messages.length);
     console.log('Latest user message for RAG:', latestUserMessage);
 
-    // Ny multilingual model + "query: " prefix
+    // Multilingual model + "query: " prefix (viktigt för e5-modeller)
     const queryEmbeddingResponse = await hf.featureExtraction({
       model: 'intfloat/multilingual-e5-large',
       inputs: `query: ${latestUserMessage}`,
@@ -67,16 +67,16 @@ export default async function handler(req, res) {
       console.log('No relevant matches found');
     }
 
+    // Förbättrad prompt: tvingar svar på frågans språk + översättning
     const systemPrompt = {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
-Svara ALLTID på samma språk som kundens senaste fråga.
-Var professionell men personlig – använd "du" och var trevlig.
-Avsluta gärna med "Behöver du hjälp med något mer?" när det passar.
+Svara ALLTID på samma språk som kundens senaste fråga – översätt informationen från kunskapsbasen till det språket vid behov.
+Var professionell men personlig – använd "du" (eller "you" på engelska) och var trevlig.
+Avsluta gärna med "Behöver du hjälp med något mer?" (eller "Do you need help with anything else?" på engelska) när det passar.
 
 Du FÅR INTE hitta på eller gissa information. Använd ENDAST information från kunskapsbasen nedan.
-Översätt informationen från kunskapsbasen till frågans språk om nödvändigt.
-Om kunskapsbasen är tom eller inte relevant, svara EXAKT: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp."
+Om kunskapsbasen är tom eller inte relevant, svara EXAKT: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp." (eller motsvarande på engelska: "I'm sorry, I couldn't find information about this in our knowledge base. Please contact support@fortuspay.se for help.")
 
 Kunskapsbas:
 ${context}`
@@ -88,7 +88,6 @@ ${context}`
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
-      messages: groqMessages,
       temperature: 0.3,
       max_tokens: 1024,
       stream: false,
