@@ -56,7 +56,8 @@ export default async function handler(req, res) {
 
     let context = '';
     if (matches.length > 0) {
-      const relevantMatches = matches.filter(m => m.score > 0.4).slice(0, 5);
+      // Lägre threshold temporärt för att fånga engelska frågor bättre
+      const relevantMatches = matches.filter(m => m.score > 0.35).slice(0, 5);
       context = relevantMatches
         .map(match => match.metadata?.text || '')
         .filter(text => text.trim() !== '')
@@ -66,14 +67,17 @@ export default async function handler(req, res) {
       console.log('No relevant matches found');
     }
 
+    // Starkare prompt för att undvika hallucinationer + bättre språk/översättning
     const systemPrompt = {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
 Svara ALLTID på samma språk som kundens senaste fråga.
 Var professionell men personlig – använd "du" och var trevlig.
 Avsluta gärna med "Behöver du hjälp med något mer?" när det passar.
-Använd ENDAST information från kunskapsbasen nedan för att svara.
-Om du inte hittar svar: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp."
+
+Du FÅR INTE hitta på eller gissa information. Använd ENDAST information från kunskapsbasen nedan.
+Översätt informationen från kunskapsbasen till frågans språk om nödvändigt.
+Om kunskapsbasen är tom eller inte relevant, svara EXAKT: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp."
 
 Kunskapsbas:
 ${context}`
