@@ -25,7 +25,7 @@ export default async function handler(req, res) {
       const embedResponse = await pinecone.inference.embed(
         'llama-text-embed-v2',
         [chunk.text],
-        { input_type: 'passage' }  // Fixar felet!
+        { input_type: 'passage' }  // Fixar felet för chunks!
       );
       const embedding = embedResponse.data[0].values;
       vectors.push({
