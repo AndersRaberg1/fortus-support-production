@@ -13,22 +13,28 @@ export default async function handler(req, res) {
     const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
     const index = pinecone.Index(process.env.PINECONE_INDEX_NAME || 'fortus-support-hf');
 
+    // Embed message med HF (samma modell som upload)
     const response = await hf.featureExtraction({
       model: 'sentence-transformers/all-MiniLM-L6-v2',
       inputs: message,
     });
     const queryEmbedding = Array.from(response);
 
+    // Query Pinecone
     const queryResponse = await index.query({
       vector: queryEmbedding,
       topK: 5,
       includeMetadata: true,
     });
 
-    const context = queryResponse.matches.map(m => m.metadata.text || '').join('\n\n') || 'Ingen relevant kunskap hittades.';
+    const context = queryResponse.matches
+      .map(m => m.metadata.text || '')
+      .join('\n\n') || 'Ingen relevant kunskap hittades.';
 
-    const prompt = `Du är en hjälpsam support-AI för FortusPay. Använd ENDAST denna kunskap (inga påhitt): ${context}\n\nFråga: ${message}\nSvara på svenska, kort och stegvis.`;
+    // Prompt som tvingar användning av context
+    const prompt = `Du är en hjälpsam support-AI för FortusPay. Använd ENDAST denna kunskap för svaret (inga påhitt): ${context}\n\nFråga: ${message}\nSvara på svenska, kort och stegvis.`;
 
+    // Groq-generation
     const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -47,6 +53,6 @@ export default async function handler(req, res) {
     res.status(200).json({ response: reply });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Fel vid RAG: ' + error.message });
+    res.status(500).json({ error: 'Fel vid RAG: ' + (error.message || 'Okänt fel') });
   }
 }
