@@ -33,14 +33,14 @@ export default async function handler(req, res) {
     console.log('Received messages count:', messages.length);
     console.log('Latest user message for RAG:', latestUserMessage);
 
-    // Multilingual model + "query: " prefix (viktigt för e5-modeller)
+    // Multilingual model + "query: " prefix
     const queryEmbeddingResponse = await hf.featureExtraction({
       model: 'intfloat/multilingual-e5-large',
       inputs: `query: ${latestUserMessage}`,
     });
 
     const queryEmbedding = Array.from(queryEmbeddingResponse);
-    console.log('Query embedding length:', queryEmbedding.length); // Ska vara 1024
+    console.log('Query embedding length:', queryEmbedding.length); // 1024
 
     const indexName = process.env.PINECONE_INDEX_NAME;
     console.log('Using Pinecone index:', indexName);
@@ -67,7 +67,7 @@ export default async function handler(req, res) {
       console.log('No relevant matches found');
     }
 
-    // Förbättrad prompt: tvingar svar på frågans språk + översättning
+    // Stark prompt med språköversättning + anti-hallucination
     const systemPrompt = {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
@@ -86,8 +86,10 @@ ${context}`
 
     console.log('Sending to Groq with messages count:', groqMessages.length);
 
+    // FIX: messages-parameter tillagd igen!
     const completion = await groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
+      messages: groqMessages,
       temperature: 0.3,
       max_tokens: 1024,
       stream: false,
