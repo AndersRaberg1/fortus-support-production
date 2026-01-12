@@ -1,42 +1,49 @@
-import { NextResponse } from 'next/server';
-import Groq from 'groq-sdk';
+import { Pinecone } from '@pinecone-database/pinecone';
 
 export default async function handler(req, res) {
-  if (req.method === 'POST') {
-    console.log('=== API-anrop startat: POST /api/chat ===');
+  if (req.method !== 'POST') return res.status(405).end();
 
-    try {
-      const body = req.body;
-      console.log('Parsad body:', JSON.stringify(body, null, 2));
-      const { message } = body;
+  const { message } = req.body;
 
-      const apiKey = process.env.GROQ_API_KEY;
-      console.log('GROQ_API_KEY exists:', !!apiKey);
-      if (!apiKey) throw new Error('GROQ_API_KEY saknas');
+  try {
+    const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
+    const index = pinecone.Index('fortus-support');
 
-      const groq = new Groq({ apiKey });
+    // Embed query med samma modell
+    const embedResponse = await pinecone.inference.embed('llama-text-embed-v2', [message], { input_type: 'query' });
+    const queryEmbedding = embedResponse.data[0].values;
 
-      const completion = await groq.chat.completions.create({
-        messages: [
-          { role: "system", content: "Du är en hjälpsam support-AI för FortusPay. Svara vänligt på svenska." },
-          { role: "user", content: message },
-        ],
-        model: "llama-3.1-8b-instant",  // Uppdaterad modell
-      });
+    // Query Pinecone
+    const queryResponse = await index.query({
+      vector: queryEmbedding,
+      topK: 5,
+      includeMetadata: true
+    });
 
-      const aiReply = completion.choices[0].message.content || 'Inget svar från AI – prova igen.';
-      console.log('AI-svar från Groq:', aiReply);
+    const context = queryResponse.matches.map(m => m.metadata.text || '').join('\n\n');
 
-      console.log('=== API-anrop lyckades ===');
-      res.status(200).json({ reply: aiReply });
-    } catch (error) {
-      console.error('=== FEL I API ===');
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({ error: 'Internt serverfel: ' + error.message });
-    }
-  } else {
-    res.setHeader('Allow', ['POST']);
-    res.status(405).end(`Method ${req.method} Not Allowed`);
+    // Prompt med context (tvinga användning)
+    const prompt = `Du är support för FortusPay. Använd ENDAST denna kunskap för svaret (inga påhitt): ${context || 'Ingen relevant kunskap hittades.'}\nFråga: ${message}\nSvara på svenska, kort och stegvis.`;
+
+    // Groq
+    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    const data = await groqResponse.json();
+    const reply = data.choices[0].message.content;
+
+    res.status(200).json({ response: reply });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Fel vid RAG' });
   }
 }
