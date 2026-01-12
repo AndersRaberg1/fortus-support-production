@@ -2,28 +2,89 @@
 <html lang="sv">
 <head>
   <meta charset="UTF-8">
-  <title>FortusPay Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FortusPay Support Chat</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+    #chat-container { max-width: 800px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; }
+    #messages { height: 60vh; overflow-y: auto; padding: 20px; }
+    .message { margin: 10px 0; padding: 10px 15px; border-radius: 10px; max-width: 80%; }
+    .user { background: #007bff; color: white; align-self: flex-end; margin-left: auto; }
+    .bot { background: #e9ecef; color: black; align-self: flex-start; }
+    #input-area { display: flex; padding: 20px; background: #f1f1f1; }
+    #user-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; margin-left: 10px; cursor: pointer; }
+    .error { color: red; font-weight: bold; }
+  </style>
 </head>
 <body>
-  <h1>Support Chat</h1>
-  <input type="text" id="message" placeholder="Skriv meddelande...">
-  <button onclick="sendMessage()">Skicka</button>
-  <div id="response"></div>
+  <div id="chat-container">
+    <div id="messages"></div>
+    <div id="input-area">
+      <input type="text" id="user-input" placeholder="Skriv din fråga här..." />
+      <button onclick="sendMessage()">Skicka</button>
+    </div>
+  </div>
+
   <script>
+    const messagesDiv = document.getElementById('messages');
+    const userInput = document.getElementById('user-input');
+
+    function addMessage(text, sender) {
+      const msg = document.createElement('div');
+      msg.classList.add('message', sender);
+      // Konvertera \n till <br> för nya rader
+      msg.innerHTML = text.replace(/\n/g, '<br>');
+      messagesDiv.appendChild(msg);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
     async function sendMessage() {
-      const msg = document.getElementById('message').value;
+      const message = userInput.value.trim();
+      if (!message) return;
+
+      addMessage(message, 'user');
+      userInput.value = '';
+
+      // Visa "tänker..." tillfälligt
+      const thinkingMsg = document.createElement('div');
+      thinkingMsg.classList.add('message', 'bot');
+      thinkingMsg.textContent = 'Tänker...';
+      messagesDiv.appendChild(thinkingMsg);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
       try {
-        const res = await fetch('/api/chat', {
+        console.log('Sending:', message);
+        const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg })
+          body: JSON.stringify({ message })
         });
-        const data = await res.json();
-        document.getElementById('response').innerText = data.reply || 'Fel: ' + data.error;
+
+        const data = await response.json();
+        console.log('Raw response:', data);
+
+        // Rensa "tänker..."
+        thinkingMsg.remove();
+
+        if (response.ok && data.answer) {
+          addMessage(data.answer, 'bot');
+        } else {
+          const errorText = data.error || data.details || 'Okänt fel (status: ' + response.status + ')';
+          addMessage('Fel: ' + errorText, 'bot');
+          console.error('API error:', errorText);
+        }
       } catch (err) {
-        document.getElementById('response').innerText = 'Fel: Kunde inte hämta svar.';
+        thinkingMsg.remove();
+        addMessage('Fel: Kan inte ansluta till servern – ' + err.message, 'bot');
+        console.error('Fetch error:', err);
       }
     }
+
+    // Enter för att skicka
+    userInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
   </script>
 </body>
 </html>
