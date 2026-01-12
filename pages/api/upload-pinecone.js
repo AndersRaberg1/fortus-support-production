@@ -10,7 +10,7 @@ export default async function handler(req, res) {
   try {
     const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
     const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-    const index = pinecone.Index('fortus-support');
+    const index = pinecone.Index(process.env.PINECONE_INDEX_NAME || 'fortus-support-hf');
 
     const chunks = [
       { keyword: 'Faktura, delbetalning', text: 'För att använda Faktura via Fortus som betalmetod för er webshop, POS eller affärssystem följ dessa steg: Kontakta Fortus. Ring in till oss på 010 – 222 15 20 eller skicka e-post via till support@fortuspay.com. Signera Fakturaköpsavtal. Avtal skickas till er via oneflow. När detta är signerat så sätts ni upp i systemet inom 24 timmar. Betalalternativ aktiveras i systemet. Fortus aktiverar fakturaknappen för er. När detta är klart kan ni börja skicka fakturor via Fortus till era kunder.' },
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
         model: 'sentence-transformers/all-MiniLM-L6-v2',
         inputs: chunk.text,
       });
-      const embedding = Array.from(response);  // Konvertera till array
+      const embedding = Array.from(response);
       vectors.push({
         id: uuid(),
         values: embedding,
@@ -37,7 +37,7 @@ export default async function handler(req, res) {
     }
 
     await index.upsert(vectors);
-    res.status(200).json({ message: `Uppladdat ${vectors.length} chunks med HuggingFace embeddings framgångsrikt!` });
+    res.status(200).json({ message: `Uppladdat ${vectors.length} chunks med HF embeddings!` });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: error.message });
