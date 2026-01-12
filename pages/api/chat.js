@@ -1,3 +1,4 @@
+import { HfInference } from '@huggingface/inference';
 import { Pinecone } from '@pinecone-database/pinecone';
 
 export default async function handler(req, res) {
@@ -8,16 +9,16 @@ export default async function handler(req, res) {
   const { message } = req.body;
 
   try {
+    const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
     const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
     const index = pinecone.Index('fortus-support');
 
-    // Embed query med rätt parameter (fixar felet!)
-    const embedResponse = await pinecone.inference.embed(
-      'llama-text-embed-v2',
-      [message],
-      { input_type: 'query' }  // Krävs för query-embedding
-    );
-    const queryEmbedding = embedResponse.data[0].values;
+    // Embed message med HF
+    const response = await hf.featureExtraction({
+      model: 'sentence-transformers/all-MiniLM-L6-v2',
+      inputs: message,
+    });
+    const queryEmbedding = Array.from(response);
 
     // Query Pinecone
     const queryResponse = await index.query({
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
       .map(m => m.metadata.text || '')
       .join('\n\n') || 'Ingen relevant kunskap hittades.';
 
-    // Prompt som tvingar användning av context
+    // Prompt
     const prompt = `Du är en hjälpsam support-AI för FortusPay. Använd ENDAST denna kunskap för svaret (inga påhitt): ${context}\n\nFråga: ${message}\nSvara på svenska, kort och stegvis.`;
 
     // Groq
