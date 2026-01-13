@@ -29,7 +29,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // RAG
+    // RAG-del (oförändrad)
     const queryEmbeddingResponse = await hf.featureExtraction({
       model: 'intfloat/multilingual-e5-large',
       inputs: `query: ${latestUserMessage}`,
@@ -59,14 +59,16 @@ export default async function handler(req, res) {
     const systemPrompt = {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
-Svara ALLTID på EXAKT samma språk som kundens senaste fråga – högsta prioritet.
-Översätt HELA kunskapsbasen till kundens språk. Behåll struktur, numrering och detaljer.
+Svara ALLTID på EXAKT samma språk som kundens senaste fråga – högsta prioritet, ingen undantag.
+Översätt HELA kunskapsbasen och svaret till kundens språk. Behåll exakt betydelse, struktur, numrering och detaljer.
+Var professionell men personlig.
 Avsluta med "Behöver du hjälp med något mer?" på kundens språk.
 
 Om svaret kan variera beroende på produkt/terminal, fråga efter förtydligande.
 
-Använd ENDAST kunskapsbasen.
-Avsluta varje svar med: "Detta är ett AI-genererat svar. För bindande råd, kontakta support@fortuspay.se." (eller översätt till kundens språk).
+Använd ENDAST kunskapsbasen. Avsluta varje svar med: "Detta är ett AI-genererat svar. För bindande råd, kontakta support@fortuspay.se."
+
+Om ingen info: Svara på kundens språk: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp."
 
 Kunskapsbas (översätt till kundens språk):
 ${context}`
@@ -74,13 +76,13 @@ ${context}`
 
     const groqMessages = [systemPrompt, ...messages];
 
-    // Streaming
+    // Streaming response
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
     const stream = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama-3.3-70b-versatile', // Ny stark modell
       messages: groqMessages,
       temperature: 0.3,
       max_tokens: 1024,
@@ -90,7 +92,7 @@ ${context}`
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       if (content) {
-        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+        res.write(`data: ${content}\n\n`);
       }
     }
 
