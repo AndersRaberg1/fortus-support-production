@@ -11,15 +11,26 @@
     .message { margin: 10px 0; padding: 10px 15px; border-radius: 10px; max-width: 80%; }
     .user { background: #007bff; color: white; align-self: flex-end; margin-left: auto; }
     .bot { background: #e9ecef; color: black; align-self: flex-start; }
-    #input-area { display: flex; padding: 20px; background: #f1f1f1; }
+    #input-area { display: flex; flex-direction: column; padding: 20px; background: #f1f1f1; }
+    #quick-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+    .quick-btn { padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+    .quick-btn:hover { background: #0056b3; }
     #user-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; margin-left: 10px; cursor: pointer; }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="chat-container">
     <div id="messages"></div>
     <div id="input-area">
+      <div id="quick-buttons">
+        <button class="quick-btn" onclick="sendQuick('Hur ansluter jag Swish?')">Anslut Swish</button>
+        <button class="quick-btn" onclick="sendQuick('Hur gör jag en retur?')">Retur i terminal</button>
+        <button class="quick-btn" onclick="sendQuick('Vad är dagsavslut?')">Dagsavslut</button>
+        <button class="quick-btn" onclick="sendQuick('Hur hämtar jag kvitto?')">Hämta kvitto</button>
+        <button class="quick-btn" onclick="sendQuick('Hur aktiverar jag faktura?')">Faktura/delbetalning</button>
+        <button class="quick-btn" onclick="sendQuick('Felsökning terminal')">Felsökning</button>
+      </div>
       <input type="text" id="user-input" placeholder="Skriv din fråga här..." />
       <button onclick="sendMessage()">Skicka</button>
     </div>
@@ -29,7 +40,6 @@
     const messagesDiv = document.getElementById('messages');
     const userInput = document.getElementById('user-input');
     
-    // Array för hela conversation history (Groq-format)
     let conversationHistory = [];
 
     function addMessage(text, sender) {
@@ -40,12 +50,16 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // Välkomstmeddelande vid laddning
     window.onload = () => {
       const welcome = 'Hej! Jag är FortusPay supportchatt. Hur kan jag hjälpa dig idag? 😊';
       addMessage(welcome, 'bot');
       conversationHistory.push({ role: 'assistant', content: welcome });
     };
+
+    function sendQuick(question) {
+      userInput.value = question;
+      sendMessage();
+    }
 
     async function sendMessage() {
       const message = userInput.value.trim();
