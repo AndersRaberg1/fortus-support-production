@@ -1,5 +1,4 @@
 import { Pinecone } from '@pinecone-database/pinecone';
-import { Groq } from 'groq-sdk';
 import { HfInference } from '@huggingface/inference';
 
 const pinecone = new Pinecone({
@@ -14,7 +13,7 @@ const groq = new Groq({
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    return res.status(405).end();
   }
 
   const { messages } = req.body;
@@ -24,26 +23,21 @@ export default async function handler(req, res) {
   }
 
   const latestUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
-  
+
   if (!latestUserMessage.trim()) {
     return res.status(400).json({ error: 'No user message found' });
   }
 
   try {
-    console.log('Received messages count:', messages.length);
-    console.log('Latest user message for RAG:', latestUserMessage);
-
+    // RAG-del (oförändrad)
     const queryEmbeddingResponse = await hf.featureExtraction({
       model: 'intfloat/multilingual-e5-large',
       inputs: `query: ${latestUserMessage}`,
     });
 
     const queryEmbedding = Array.from(queryEmbeddingResponse);
-    console.log('Query embedding length:', queryEmbedding.length);
 
-    const indexName = process.env.PINECONE_INDEX_NAME;
-    console.log('Using Pinecone index:', indexName);
-    const index = pinecone.index(indexName);
+    const index = pinecone.index(process.env.PINECONE_INDEX_NAME);
 
     const queryResponse = await index.query({
       vector: queryEmbedding,
@@ -52,7 +46,6 @@ export default async function handler(req, res) {
     });
 
     const matches = queryResponse.matches || [];
-    console.log('Number of matches found:', matches.length);
 
     let context = '';
     if (matches.length > 0) {
@@ -61,51 +54,53 @@ export default async function handler(req, res) {
         .map(match => match.metadata?.text || '')
         .filter(text => text.trim() !== '')
         .join('\n\n');
-      console.log('Final context length:', context.length);
-    } else {
-      console.log('No relevant matches found');
     }
 
     const systemPrompt = {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
-Svara ALLTID på exakt samma språk som kundens senaste fråga.
-Översätt ALL information från kunskapsbasen till frågans språk – behåll exakt betydelse och struktur.
-Var professionell men personlig – använd "du" på svenska eller motsvarande på andra språk.
+Svara ALLTID på EXAKT samma språk som kundens senaste fråga – högsta prioritet, ingen undantag.
+Översätt HELA kunskapsbasen och svaret till kundens språk. Behåll exakt betydelse, struktur, numrering och detaljer.
+Var professionell men personlig.
+Avsluta med "Behöver du hjälp med något mer?" på kundens språk.
 
-Om svaret kan variera beroende på produkt, betalterminal eller annan faktor (t.ex. olika modeller eller konfigurationer), fråga efter förtydligande för att ge bästa möjliga hjälp, t.ex. "Vilken betalterminal eller produkt avser du?"
+Om svaret kan variera beroende på produkt/terminal, fråga efter förtydligande.
 
-Kom ihåg tidigare meddelanden i konversationen för att undvika upprepning och ge mer personliga svar.
+Använd ENDAST kunskapsbasen. Avsluta varje svar med: "Detta är ett AI-genererat svar. För bindande råd, kontakta support@fortuspay.se."
 
-Använd ENDAST information från kunskapsbasen nedan för att svara.
-Avsluta VARJE svar med: "Detta är ett AI-genererat svar. För bindande råd, kontakta support@fortuspay.se."
+Om ingen info: Svara på kundens språk: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp."
 
-Om du inte hittar svar: "Jag kunde tyvärr inte hitta information om detta i vår kunskapsbas. Kontakta support@fortuspay.se för hjälp."
-
-Kunskapsbas:
+Kunskapsbas (översätt till kundens språk):
 ${context}`
     };
 
     const groqMessages = [systemPrompt, ...messages];
 
-    console.log('Sending to Groq with messages count:', groqMessages.length);
+    // Streaming response
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
+    const stream = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile', // Ny stark modell
       messages: groqMessages,
       temperature: 0.3,
       max_tokens: 1024,
-      stream: false,
+      stream: true,
     });
 
-    const answer = completion.choices[0]?.message?.content || 'Inget svar från modellen.';
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        res.write(`data: ${content}\n\n`);
+      }
+    }
 
-    console.log('Groq response:', answer.substring(0, 500));
-
-    res.status(200).json({ answer });
+    res.write('data: [DONE]\n\n');
+    res.end();
   } catch (error) {
-    console.error('Error in chat API:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error('Error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
