@@ -22,10 +22,14 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Messages array is required' });
   }
 
-  try {
-    const latestUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+  const latestUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
 
-    // RAG (oförändrad)
+  if (!latestUserMessage.trim()) {
+    return res.status(400).json({ error: 'No user message found' });
+  }
+
+  try {
+    // RAG
     const queryEmbeddingResponse = await hf.featureExtraction({
       model: 'intfloat/multilingual-e5-large',
       inputs: `query: ${latestUserMessage}`,
@@ -56,13 +60,13 @@ export default async function handler(req, res) {
       role: 'system',
       content: `Du är en hjälpsam, vänlig och artig supportagent för FortusPay.
 Svara ALLTID på EXAKT samma språk som kundens senaste fråga – högsta prioritet.
-Översätt HELA kunskapsbasen till kundens språk. Behåll struktur och detaljer.
+Översätt HELA kunskapsbasen till kundens språk. Behåll struktur, numrering och detaljer.
 Avsluta med "Behöver du hjälp med något mer?" på kundens språk.
 
 Om svaret kan variera beroende på produkt/terminal, fråga efter förtydligande.
 
 Använd ENDAST kunskapsbasen.
-Avsluta varje svar med: "Detta är ett AI-genererat svar. För bindande råd, kontakta support@fortuspay.se." (översätt till kundens språk om nödvändigt).
+Avsluta varje svar med: "Detta är ett AI-genererat svar. För bindande råd, kontakta support@fortuspay.se." (eller översätt till kundens språk).
 
 Kunskapsbas (översätt till kundens språk):
 ${context}`
@@ -76,7 +80,7 @@ ${context}`
     res.setHeader('Connection', 'keep-alive');
 
     const stream = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile', // Ny stark modell
+      model: 'llama-3.3-70b-versatile',
       messages: groqMessages,
       temperature: 0.3,
       max_tokens: 1024,
@@ -86,7 +90,7 @@ ${context}`
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       if (content) {
-        res.write(`data: ${content}\n\n`);
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
       }
     }
 
