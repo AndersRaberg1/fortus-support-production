@@ -11,4 +11,6 @@
     "@huggingface/inference": "^4.13.5",
     "google-spreadsheet": "^5.0.0"
     "googleapis": "^134.0.0",
+    "prisma": "^5.8.1",
+    "@prisma/client": "^5.8.1"
   }
