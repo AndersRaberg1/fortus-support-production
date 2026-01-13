@@ -1,5 +1,6 @@
 import { Pinecone } from '@pinecone-database/pinecone';
 import { HfInference } from '@huggingface/inference';
+import { google } from 'googleapis';
 import crypto from 'crypto';
 
 const pinecone = new Pinecone({
@@ -12,21 +13,33 @@ const hf = new HfInference(process.env.HF_TOKEN);
 
 async function syncKB() {
   try {
-    // Dynamisk import – detta löser build-felet helt
-    const { GoogleSpreadsheet } = await import('google-spreadsheet');
-
-    const doc = new GoogleSpreadsheet('1DskBGn-cvbEn30NKBpyeueOvowB8-YagnTACz9LIChk');
-
-    await doc.useServiceAccountAuth({
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+    // Officiella Google API – funkar perfekt på Vercel
+    const auth = new google.auth.GoogleAuth({
+      credentials: {
+        client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+        private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      },
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
-    await doc.loadInfo();
+    const sheets = google.sheets({ version: 'v4', auth });
 
-    const sheet = doc.sheetsByIndex[0]; // Byt till annan flik vid behov
+    // Hämta alla rader från Sheet:en
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: '1DskBGn-cvbEn30NKBpyeueOvowB8-YagnTACz9LIChk',
+      range: 'A:Z', // Anpassa om ni har specifik flik, t.ex. 'Fliknamn!A:Z'
+    });
 
-    const rows = await sheet.getRows();
+    const rows = response.data.values || [];
+
+    if (rows.length === 0) {
+      console.log('Inga rader i Sheet:en.');
+      return { success: true, count: 0 };
+    }
+
+    // Antag header i rad 1, data från rad 2
+    const header = rows[0];
+    const dataRows = rows.slice(1);
 
     try {
       await index.delete({ deleteAll: true });
@@ -37,10 +50,16 @@ async function syncKB() {
 
     const vectorsToUpsert = [];
 
-    for (const row of rows) {
-      const question = (row.get('Fråga') || row.get('Question') || '').trim();
-      const answer = (row.get('Svar') || row.get('Answer') || '').trim();
-      const category = (row.get('Kategori') || row.get('Category') || 'allmänt').trim();
+    for (const row of dataRows) {
+      // Skapa objekt från header
+      const rowObj = header.reduce((obj, key, i) => {
+        obj[key] = row[i] || '';
+        return obj;
+      }, {});
+
+      const question = (rowObj['Fråga'] || rowObj['Question'] || '').trim();
+      const answer = (rowObj['Svar'] || rowObj['Answer'] || '').trim();
+      const category = (rowObj['Kategori'] || rowObj['Category'] || 'allmänt').trim();
 
       if (!question || !answer) continue;
 
