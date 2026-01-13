@@ -12,10 +12,11 @@
     .user { background: #007bff; color: white; align-self: flex-end; margin-left: auto; }
     .bot { background: #e9ecef; color: black; align-self: flex-start; }
     #input-area { display: flex; flex-direction: column; padding: 20px; background: #f1f1f1; }
-    #quick-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
-    .quick-btn { padding: 8px 12px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-    #user-input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; }
+    #quick-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; justify-content: center; }
+    .quick-btn { padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 14px; }
+    .quick-btn:hover { background: #0056b3; }
+    #user-input { padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+    #send-btn { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; margin-top: 10px; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -31,7 +32,7 @@
         <button class="quick-btn" onclick="sendQuick('Felsökning terminal')">Felsökning</button>
       </div>
       <input type="text" id="user-input" placeholder="Skriv din fråga här..." />
-      <button onclick="sendMessage()">Skicka</button>
+      <button id="send-btn" onclick="sendMessage()">Skicka</button>
     </div>
   </div>
 
@@ -68,10 +69,10 @@
       conversationHistory.push({ role: 'user', content: message });
       userInput.value = '';
 
-      const botMsg = document.createElement('div');
-      botMsg.classList.add('message', 'bot');
-      botMsg.textContent = '';
-      messagesDiv.appendChild(botMsg);
+      const thinkingMsg = document.createElement('div');
+      thinkingMsg.classList.add('message', 'bot');
+      thinkingMsg.textContent = 'Tänker...';
+      messagesDiv.appendChild(thinkingMsg);
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
       try {
@@ -81,36 +82,20 @@
           body: JSON.stringify({ messages: conversationHistory })
         });
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let answer = '';
+        const data = await response.json();
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        thinkingMsg.remove();
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              try {
-                const parsed = JSON.parse(data);
-                answer += parsed.content || '';
-              } catch {
-                answer += data;
-              }
-              botMsg.innerHTML = answer.replace(/\n/g, '<br>');
-              messagesDiv.scrollTop = messagesDiv.scrollHeight;
-            }
-          }
+        if (response.ok && data.answer) {
+          addMessage(data.answer, 'bot');
+          conversationHistory.push({ role: 'assistant', content: data.answer });
+        } else {
+          const errorText = data.error || data.details || 'Okänt fel';
+          addMessage('Fel: ' + errorText, 'bot');
         }
-
-        conversationHistory.push({ role: 'assistant', content: answer });
       } catch (err) {
-        botMsg.textContent = 'Fel: ' + err.message;
+        thinkingMsg.remove();
+        addMessage('Fel: Kan inte ansluta – ' + err.message, 'bot');
       }
     }
 
