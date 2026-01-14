@@ -1,1 +1,16 @@
+generator client {
+  provider = "prisma-client-js"
+}
 
+datasource db {
+  provider = "postgresql" // Supabase är Postgres
+  url      = env("DATABASE_URL")
+}
+
+model KbContent {
+  id         Int      @id @default(autoincrement())
+  title      String?
+  category   String?
+  content    String   // Här lagras ren textmassa från supportsidor
+  updated_at DateTime @updatedAt
+}
