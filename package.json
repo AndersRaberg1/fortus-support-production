@@ -1,15 +1,13 @@
 {
-  "//force fresh deploy 2026-1.1"
   "name": "fortus-support",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "vercel-build": "prisma generate && next build",
-    "postinstall": "prisma generate"
+    "vercel-build": "prisma generate && next build"
   },
   "dependencies": {
     "next": "^14.2.13",
